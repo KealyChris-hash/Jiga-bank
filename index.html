@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JIGA BANK v1.3</title>
+<script async crossorigin="anonymous" data-clerk-publishable-key="" src="https://https://fond-donkey-2182.clerk.accounts.dev/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"></script>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+  body { background: linear-gradient(135deg, #001f3f, #004e92); color: white; min-height: 100vh; }
+ .phone { max-width: 430px; margin: 15px auto; background: #050505; border-radius: 35px; padding: 20px; border: 10px solid #111; box-shadow: 0 0 40px #004e92; }
+ .header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 2px solid #FFD700; }
+ .header h1 { color: #FFD700; font-size: 18px; }
+ .acct { font-size: 10px; color: #aaa; }
+ .balance-card { background: linear-gradient(135deg, #FFD700, #FF8C00); color: #000; padding: 25px; border-radius: 25px; margin: 20px 0; text-align: center; }
+ .balance { font-size: 36px; font-weight: 900; }
+ .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin: 20px 0; }
+ .btn { background: #111; border: 1px solid #FFD700; border-radius: 18px; padding: 15px 5px; text-align: center; cursor: pointer; font-size: 11px; }
+ .btn:hover { background: #FFD700; color: #000; transform: translateY(-2px); }
+ .modal { display: none; background: #111; padding: 15px; border-radius: 15px; margin: 10px 0; border: 1px solid #FFD700; }
+  input, select { width: 100%; padding: 12px; margin: 6px 0; border-radius: 10px; border: none; background: #222; color: white; }
+  button { width: 100%; padding: 12px; background:#FFD700; border:none; border-radius:10px; font-weight:bold; cursor:pointer; color:#000; }
+ .tx { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #333; font-size: 12px; }
+ .credit { color: #00FF00; }.debit { color: #FF4444; }
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <div id="auth"></div>
+
+  <div id="app" style="display:none;">
+    <div class="header">
+      <div>
+        <h1>👑 JIGA BANK</h1>
+        <div class="acct" id="acctNum">Acct: 0000</div>
+      </div>
+      <div id="user-button"></div>
+    </div>
+
+    <div class="balance-card">
+      <div style="font-size:12px;">AVAILABLE BALANCE</div>
+      <div class="balance" id="balance">₦100,000.00</div>
+    </div>
+
+    <div class="grid">
+      <div class="btn" onclick="show('send')"><div>💸</div>Transfer</div>
+      <div class="btn" onclick="show('airtime')"><div>📱</div>Airtime</div>
+      <div class="btn" onclick="show('data')"><div>📶</div>Data</div>
+      <div class="btn" onclick="show('bills')"><div>💡</div>Bills</div>
+      <div class="btn" onclick="show('loan')"><div>🏦</div>Loan</div>
+      <div class="btn" onclick="deposit()"><div>💰</div>Deposit</div>
+    </div>
+
+    <!-- TRANSFER -->
+    <div id="send" class="modal">
+      <h3>💸 Send Money</h3>
+      <input type="text" id="receiverAcct" placeholder="Receiver Account Number">
+      <input type="number" id="sendAmt" placeholder="Amount ₦">
+      <button onclick="sendMoney()">Send Now</button>
+    </div>
+
+    <!-- AIRTIME -->
+    <div id="airtime" class="modal">
+      <h3>📱 Buy Airtime</h3>
+      <select id="network"><option>MTN</option><option>AIRTEL</option><option>GLO</option><option>9MOBILE</option></select>
+      <input type="text" id="airtimeNum" placeholder="Phone Number">
+      <input type="number" id="airtimeAmt" placeholder="Amount ₦">
+      <button onclick="buyAirtime()">Buy Airtime</button>
+    </div>
+
+    <!-- DATA -->
+    <div id="data" class="modal">
+      <h3>📶 Buy Data</h3>
+      <select id="dataNetwork"><option>MTN</option><option>AIRTEL</option><option>GLO</option></select>
+      <input type="text" id="dataNum" placeholder="Phone Number">
+      <select id="dataPlan"><option>1GB - ₦500</option><option>3GB - ₦1000</option><option>10GB - ₦3000</option></select>
+      <button onclick="buyData()">Buy Data</button>
+    </div>
+
+    <!-- BILLS -->
+    <div id="bills" class="modal">
+      <h3>💡 Pay Bills</h3>
+      <button onclick="payBill('NEPA', 15000)">NEPA ₦15,000</button>
+      <button onclick="payBill('DSTV', 8000)">DSTV ₦8,000</button>
+      <button onclick="payBill('GOTV', 4000)">GOTV ₦4,000</button>
+    </div>
+
+    <!-- LOAN -->
+    <div id="loan" class="modal">
+      <h3>🏦 Jiga Loan</h3>
+      <p>Eligible: ₦500,000 at 3% interest</p>
+      <button onclick="takeLoan()">Collect ₦500K</button>
+    </div>
+
+    <h3 style="margin-top:15px;">📜 Transactions</h3>
+    <div id="txList" style="max-height:200px; overflow-y:auto;"></div>
+  </div>
+</div>
+
+<script>
+let clerk;
+let currentUserData = null;
+
+window.addEventListener('load', async () => {
+  await Clerk.load();
+  if (Clerk.user) showApp();
+  else {
+    document.getElementById("auth").innerHTML = '<div id="sign-in"></div>';
+    Clerk.mountSignIn(document.getElementById("sign-in"));
+  }
+  Clerk.mountUserButton(document.getElementById("user-button"));
+});
+
+// JSON "DATABASE"
+function getDB() { return JSON.parse(localStorage.getItem('jigaBankDB') || '{}'); }
+function saveDB(db) { localStorage.setItem('jigaBankDB', JSON.stringify(db)); }
+function genAcct() { return '4' + Math.floor(100000000 + Math.random() * 900000000); }
+
+function showApp() {
+  document.getElementById("auth").style.display = "none";
+  document.getElementById("app").style.display = "block";
+  loadUser();
+  setInterval(loadUser, 2000); // live update
+}
+
+function loadUser() {
+  let db = getDB();
+  let email = Clerk.user.emailAddresses[0].emailAddress;
+
+  if(!db[email]) {
+    db[email] = {
+      acct: genAcct(),
+      name: Clerk.user.firstName || "Jiga User",
+      balance: 100000,
+      tx: [{note: "Welcome Bonus", amt: 100000, type: "credit", time: Date.now()}]
+    };
+    saveDB(db);
+  }
+  currentUserData = db[email];
+  document.getElementById("acctNum").innerText = "Acct: " + currentUserData.acct;
+  updateUI();
+}
+
+function updateUI() {
+  document.getElementById("balance").innerText = "₦" + currentUserData.balance.toLocaleString();
+  let txHTML = "";
+  currentUserData.tx.slice().reverse().forEach(tx => {
+    txHTML += `<div class="tx"><span>${tx.note}</span><span class="${tx.type}"> ${tx.type==='credit'?'+':'-'}₦${tx.amt.toLocaleString()}</span></div>`;
+  });
+  document.getElementById("txList").innerHTML = txHTML;
+}
+
+function show(id) {
+  document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+  document.getElementById(id).style.display = 'block';
+}
+
+function saveTx(note, amt, type) {
+  let db = getDB();
+  let email = Clerk.user.emailAddresses[0].emailAddress;
+  db[email].tx.push({note, amt, type, time: Date.now()});
+  db[email].balance = currentUserData.balance;
+  saveDB(db);
+  currentUserData = db[email];
+}
+
+// 1. SEND MONEY WITH ACCOUNT NUMBER
+function sendMoney() {
+  let db = getDB();
+  let senderEmail = Clerk.user.emailAddresses[0].emailAddress;
+  let receiverAcct = document.getElementById("receiverAcct").value;
+  let amt = parseInt(document.getElementById("sendAmt").value);
+
+  let receiverEmail = Object.keys(db).find(e => db[e].acct === receiverAcct);
+  if(!receiverEmail) return alert("Account Number not found");
+  if(db[senderEmail].balance < amt) return alert("Insufficient funds");
+
+  db[senderEmail].balance -= amt;
+  db[receiverEmail].balance += amt;
+
+  db[senderEmail].tx.push({note: "To: " + db[receiverEmail].name, amt, type: "debit"});
+  db[receiverEmail].tx.push({note: "From: " + db[senderEmail].name, amt, type: "credit"});
+
+  saveDB(db); loadUser();
+  alert("₦" + amt.toLocaleString() + " Sent Successfully!");
+}
+
+// 2. BUY AIRTIME
+function buyAirtime() {
+  let amt = parseInt(document.getElementById("airtimeAmt").value);
+  if(currentUserData.balance < amt) return alert("Insufficient funds");
+  currentUserData.balance -= amt;
+  saveTx("Airtime " + document.getElementById("network").value, amt, "debit");
+  alert("Airtime Purchased!");
+}
+
+// 3. BUY DATA
+function buyData() {
+  let plan = document.getElementById("dataPlan").value;
+  let amt = parseInt(plan.split('₦')[1]);
+  if(currentUserData.balance < amt) return alert("Insufficient funds");
+  currentUserData.balance -= amt;
+  saveTx("Data " + plan, amt, "debit");
+  alert("Data Activated!");
+}
+
+// 4. PAY BILLS
+function payBill(name, amt) {
+  if(currentUserData.balance < amt) return alert("Insufficient funds");
+  currentUserData.balance -= amt;
+  saveTx(name + " Bill", amt, "debit");
+  alert(name + " Paid!");
+}
+
+// 5. LOAN
+function takeLoan() {
+  currentUserData.balance += 500000;
+  saveTx("Jiga Loan", 500000, "credit");
+  alert("₦500,000 Loan Credited!");
+}
+
+// 6. DEPOSIT
+function deposit() {
+  currentUserData.balance += 50000;
+  saveTx("Deposit", 50000, "credit");
+}
+
+</script>
+</body>
+</html>
