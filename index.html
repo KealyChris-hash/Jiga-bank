@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JIGA BANK  - FREE 10K</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+  body { background: linear-gradient(135deg, #001f3f, #004e92); color: white; min-height: 100vh; padding: 10px; }
+ .phone { max-width: 430px; margin: 15px auto; background: #050505; border-radius: 35px; padding: 20px; border: 10px solid #111; box-shadow: 0 0 30px rgba(255,215,0,0.3); }
+ .header { text-align: center; padding-bottom: 15px; border-bottom: 2px solid #FFD700; }
+ .header h1 { color: #FFD700; font-size: 20px; }
+ .bonus { background: linear-gradient(135deg, #FFD700, #FFA500); color:#000; padding:10px; border-radius:10px; text-align:center; font-weight:bold; margin:10px 0; }
+ .acc-box { background: linear-gradient(135deg, #00FF88, #00CC66); color:#000; padding:15px; border-radius:15px; text-align:center; margin:15px 0; }
+ .acc-box h2 { font-size:12px; }
+ .acc-box h1 { font-size:24px; font-weight:900; letter-spacing:2px; }
+ .balance { background: linear-gradient(135deg, #FFD700, #FFA500); color:#000; padding:20px; border-radius:20px; text-align:center; margin:10px 0; }
+ .balance h1 { font-size:32px; font-weight:900; }
+ .input { width: 100%; padding: 14px; margin: 8px 0; border-radius: 10px; border: 1px solid #FFD700; background: #222; color: white; font-size: 14px; }
+ .btn { width:100%; padding:14px; background:#FFD700; border:none; border-radius:10px; font-weight:bold; color:#000; margin-top:10px; cursor:pointer; font-size:16px;}
+ .btn-green { background:#00FF88; }
+ .status { background: #111; padding: 15px; border-radius: 15px; margin: 10px 0; border: 1px solid #FFD700; display: none; }
+ .loading { animation: spin 1s linear infinite; display: inline-block; }
+  @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+ .tx { font-size:11px; padding:8px 0; border-bottom:1px solid #333; }
+ .debit { color:#FF4444; }
+ .credit { color:#00FF88; }
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <div class="header">
+    <h1>👑 JIGA BANK v4.0</h1>
+  </div>
+
+  <div class="bonus">🎉 NEW USERS GET ₦10,000 FREE</div>
+
+  <!-- ACCOUNT NUMBER -->
+  <div class="acc-box">
+    <h2>YOUR JIGA ACCOUNT NUMBER</h2>
+    <h1 id="jigaAcc">Loading...</h1>
+    <button onclick="copyAcc()" class="btn" style="background:white; margin-top:5px; padding:8px; font-size:12px;">📋 Copy Account</button>
+  </div>
+
+  <!-- BALANCE -->
+  <div class="balance">
+    <h2>AVAILABLE BALANCE</h2>
+    <h1 id="balance">₦0.00</h1>
+  </div>
+
+  <!-- SEND MONEY -->
+  <div id="send">
+    <h3 style="margin:10px 0;">Send Money</h3>
+    <input type="text" id="toPhone" class="input" placeholder="Receiver Phone - 0803xxxxxxx" onkeyup="convertToAcc()">
+    <div id="showAcc" style="font-size:11px; color:#00FF88; margin-bottom:5px; font-weight:bold;"></div>
+
+    <input type="number" id="sendAmt" class="input" placeholder="Amount ₦">
+    <button class="btn" onclick="sendMoney()">Send Money</button>
+  </div>
+
+  <div id="status" class="status">
+    <div id="statusText"></div>
+  </div>
+
+  <!-- HISTORY -->
+  <div id="history" style="margin-top:15px;">
+    <h3>📜 Transaction History</h3>
+    <div id="txList">Loading...</div>
+  </div>
+</div>
+
+<script>
+// ====== CONFIG - PASTE YOUR KEYS HERE ======
+const JSONBIN_API_KEY = "$2a$10$CjKdlLbamwTX2LMTISKVt.j0Q0.98y/N4EWPbQo4AOMQoxn2Y2o7W";
+const MASTER_BIN_ID = "6a842e07f5f4af5e2923c2fd";
+
+let myData = {};
+let myBinID = "";
+
+// ====== ON LOAD ======
+window.onload = async function() {
+  await registerOrLogin();
+  await loadWallet();
+}
+
+async function registerOrLogin() {
+  myBinID = localStorage.getItem('jigaBinID');
+
+  if(!myBinID) {
+    // NEW USER - CREATE ACCOUNT + FREE 10K
+    const phone = prompt("Welcome to JIGA Bank! Enter your phone number:");
+    if(!phone) return;
+    let cleanPhone = phone.replace(/\D/g, '');
+    if(cleanPhone.startsWith('234')) cleanPhone = '0' + cleanPhone.slice(3);
+    if(cleanPhone.length!== 11) return alert("Enter valid 11 digit number");
+    const jigaAcc = "802" + cleanPhone.slice(-7);
+
+    myData = {
+      jigaAcc: jigaAcc,
+      phone: cleanPhone,
+      balance: 10000, // FREE 10K WELCOME
+      tx: [
+        {
+          type: "CREDIT",
+          from: "JIGA WELCOME BONUS",
+          amt: 10000,
+          time: new Date().toLocaleString()
+        }
+      ]
+    };
+
+    showStatus(`<span class="loading">⏳</span> Creating your account with ₦10,000...`);
+
+    // 1. Create user bin with 10k
+    const createRes = await fetch(`https://api.jsonbin.io/v3/b`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Master-Key": JSONBIN_API_KEY,
+        "X-Bin-Name": "JIGA_" + jigaAcc
+      },
+      body: JSON.stringify(myData)
+    });
+    const newBin = await createRes.json();
+    myBinID = newBin.metadata.id;
+
+    // 2. Add to Master Bin
+    const master = await getMaster();
+    master.users[jigaAcc] = myBinID;
+    await saveMaster(master);
+
+    localStorage.setItem('jigaBinID', myBinID);
+    alert(`Welcome! Your JIGA Account Number: ${jigaAcc}\n\n🎉 You got ₦10,000 Welcome Bonus!`);
+  }
+}
+
+async function getMaster() {
+  const res = await fetch(`https://api.jsonbin.io/v3/b/${MASTER_BIN_ID}/latest`, {
+    headers: {"X-Master-Key": JSONBIN_API_KEY}
+  });
+  return (await res.json()).record;
+}
+
+async function saveMaster(data) {
+  await fetch(`https://api.jsonbin.io/v3/b/${MASTER_BIN_ID}`, {
+    method: "PUT",
+    headers: {"Content-Type": "application/json", "X-Master-Key": JSONBIN_API_KEY},
+    body: JSON.stringify(data)
+  });
+}
+
+async function loadWallet() {
+  showStatus(`<span class="loading">⏳</span> Loading wallet...`);
+  const res = await fetch(`https://api.jsonbin.io/v3/b/${myBinID}/latest`, {
+    headers: {"X-Master-Key": JSONBIN_API_KEY}
+  });
+  myData = (await res.json()).record;
+  document.getElementById("balance").innerText = `₦${myData.balance.toFixed(2)}`;
+  document.getElementById("jigaAcc").innerText = myData.jigaAcc;
+  updateHistory();
+  document.getElementById("status").style.display = "none";
+}
+
+// CONVERT PHONE TO JIGA ACCOUNT NUMBER
+function convertToAcc() {
+  const phone = document.getElementById("toPhone").value;
+  let cleanPhone = phone.replace(/\D/g, '');
+  if(cleanPhone.startsWith('234')) cleanPhone = '0' + cleanPhone.slice(3);
+
+  if(cleanPhone.length >= 11) {
+    const jigaAcc = "802" + cleanPhone.slice(-7);
+    document.getElementById("showAcc").innerText = `JIGA ACC: ${jigaAcc}`;
+    return jigaAcc;
+  } else {
+    document.getElementById("showAcc").innerText = "";
+    return "";
+  }
+}
+
+// SEND MONEY
+async function sendMoney() {
+  const phone = document.getElementById("toPhone").value;
+  const toAcc = convertToAcc();
+  const amt = parseFloat(document.getElementById("sendAmt").value);
+
+  if(!toAcc) return alert("Enter valid 11 digit phone number");
+  if(!amt || amt <= 0) return alert("Enter valid amount");
+  if(myData.balance < amt) return alert("Insufficient Balance");
+
+  showStatus(`<span class="loading">⏳</span> Sending ₦${amt}...`);
+
+  // 1. Find receiver
+  const master = await getMaster();
+  const toBinID = master.users[toAcc];
+  if(!toBinID) return alert(`Account ${toAcc} not found. Ask them to open JIGA first`);
+
+  // 2. Debit sender
+  myData.balance -= amt;
+  myData.tx.push({type:"DEBIT", to:toAcc, amt, time: new Date().toLocaleString()});
+  await saveMyBin();
+
+  // 3. Credit receiver
+  const res = await fetch(`https://api.jsonbin.io/v3/b/${toBinID}/latest`, {
+    headers: {"X-Master-Key": JSONBIN_API_KEY}
+  });
+  let toData = (await res.json()).record;
+  toData.balance += amt;
+  toData.tx.push({type:"CREDIT", from:myData.jigaAcc, amt, time: new Date().toLocaleString()});
+
+  await fetch(`https://api.jsonbin.io/v3/b/${toBinID}`, {
+    method: "PUT",
+    headers: {"Content-Type": "application/json", "X-Master-Key": JSONBIN_API_KEY},
+    body: JSON.stringify(toData)
+  });
+
+  showStatus(`✅ Sent ₦${amt} to ${toAcc}`, "success");
+  document.getElementById("toPhone").value = "";
+  document.getElementById("showAcc").innerText = "";
+  loadWallet();
+}
+
+async function saveMyBin() {
+  await fetch(`https://api.jsonbin.io/v3/b/${myBinID}`, {
+    method: "PUT",
+    headers: {"Content-Type": "application/json", "X-Master-Key": JSONBIN_API_KEY},
+    body: JSON.stringify(myData)
+  });
+}
+
+function copyAcc() {
+  navigator.clipboard.writeText(document.getElementById("jigaAcc").innerText);
+  alert("Account Number Copied!");
+}
+
+function showStatus(msg) {
+  document.getElementById("status").style.display = "block";
+  document.getElementById("statusText").innerHTML = msg;
+}
+
+function updateHistory() {
+  let html = "";
+  myData.tx.slice().reverse().slice(0,15).forEach(tx => {
+    const cls = tx.type === "CREDIT"? "credit" : "debit";
+    html += `<div class="tx ${cls}">${tx.time}<br>${tx.type} ₦${tx.amt} ${tx.to? 'to '+tx.to : 'from '+tx.from}</div>`;
+  });
+  document.getElementById("txList").innerHTML = html || "No transactions yet";
+}
+</script>
+</body>
+</html>
